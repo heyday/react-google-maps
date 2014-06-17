@@ -1,0 +1,15 @@
+{
+  "name": "react-google-maps",
+  "version": "0.0.0",
+  "description": "",
+  "main": "react-google-maps.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "envify": "^1.2.1",
+    "react": "^0.10.0"
+  }
+}
