@@ -1,6 +1,13 @@
 {
   "devDependencies": {
     "react": "~0.10.0",
-    "react-google-maps": "~0.10.0"
+    "react-google-maps": "*",
+    "browserify": "^4.1.10",
+    "reactify": "^0.13.1",
+    "watchify": "^0.10.2"
+  },
+  "scripts": {
+    "watch": "watchify -t reactify app.js -o bundle.js",
+    "build": "browserify -t reactify app.js -o bundle.js"
   }
 }
