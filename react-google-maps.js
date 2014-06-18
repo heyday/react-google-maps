@@ -1,198 +1,158 @@
 "use strict";
 
 var GoogleMaps = google.maps;
-
-var DOMPropertyOperations = require('react/lib/DOMPropertyOperations');
-var ReactBrowserComponentMixin = require('react/lib/ReactBrowserComponentMixin');
-var ReactComponent = require('react/lib/ReactComponent');
-var ReactMount = require('react/lib/ReactMount');
-var ReactMultiChild = require('react/lib/ReactMultiChild');
-var ReactDOMComponent = require('react/lib/ReactDOMComponent');
-var ReactUpdates = require('react/lib/ReactUpdates');
-
-var ReactComponentMixin = ReactComponent.Mixin;
-
-var mixInto = require('react/lib/mixInto');
+var React = require('react/addons');
 var merge = require('react/lib/merge');
+var mergeInto = require('react/lib/mergeInto');
+var cloneWithProps = require('react/lib/cloneWithProps');
 
-// Used for comparison during mounting to avoid a lot of null checks
-var BLANK_PROPS = {};
+/**
+ * Creates an object containing the changes between two objects
+ *
+ *   Input:  {blue: true, red: null} {red: null}
+ *   Output: {blue: undefined, red: null}
+ *
+ * @param {object} prev
+ * @param {object} next
+ * @returns {object}
+ */
+function changed(prev, next) {
+	var changed = {};
+	var key;
 
-function createComponent(name) {
-	var ReactGoogleMapComponent = function() {};
-	ReactGoogleMapComponent.displayName = name;
-	for (var i = 1, l = arguments.length; i < l; i++) {
-		mixInto(ReactGoogleMapComponent, arguments[i]);
+	if (prev === next) {
+		return changed;
 	}
-	var ConvenienceConstructor = function(props, children) {
-		var instance = new ReactGoogleMapComponent();
-		// Children can be either an array or more than one argument
-		instance.construct.apply(instance, arguments);
-		return instance;
-	};
-	ConvenienceConstructor.type = ReactGoogleMapComponent;
-	ReactGoogleMapComponent.prototype.type = ReactGoogleMapComponent;
-	return ConvenienceConstructor;
+
+	for (key in next) {
+		if (!prev.hasOwnProperty(key) || prev[key] !== next[key]) {
+			changed[key] = next[key];
+		}
+	}
+
+	for (key in prev) {
+		if (!next.hasOwnProperty(key)) {
+			changed[key] = undefined;
+		}
+	}
+
+	return changed;
 }
 
-// ContainerMixin for components that can hold Map nodes
+var Map = React.createClass({
+	displayName: 'Map',
 
-var ContainerMixin = merge(ReactMultiChild.Mixin, {
+	propTypes: {
+		width: React.PropTypes.number,
+		height: React.PropTypes.number,
+		style: React.PropTypes.object,
 
-	/**
-	 * Moves a child component to the supplied index.
-	 *
-	 * @param {ReactComponent} child Component to move.
-	 * @param {number} toIndex Destination index of the element.
-	 * @protected
-	 */
-	moveChild: function(child, toIndex) {
-		// No need to move things around
-		return;
+		center: React.PropTypes.instanceOf(GoogleMaps.LatLng ).isRequired,
+		zoom: React.PropTypes.number.isRequired,
+
+		onClick: React.PropTypes.func
 	},
 
-	/**
-	 * Creates a child component.
-	 *
-	 * @param {ReactComponent} child Component to create.
-	 * @param {object} childNode ART node to insert.
-	 * @protected
-	 */
-	createChild: function(child, childNode) {
-		child._mountImage = childNode;
-		childNode.setMap(this.node);
+	getDefaultProps: function() {
+		return {
+			scrollwheel: false,
+			draggable: false,
+			keyboardShortcuts: false,
+			panControl: false,
+			zoomControl: false,
+			mapTypeControl: false,
+			scaleControl: false,
+			streetViewControl: false,
+			overviewMapControl: false,
+			disableDoubleClickZoom: true,
+			mapTypeId: GoogleMaps.MapTypeId.ROADMAP
+		};
 	},
 
-	/**
-	 * Removes a child component.
-	 *
-	 * @param {ReactComponent} child Child to remove.
-	 * @protected
-	 */
-	removeChild: function(child) {
-		child._mountImage.setMap(null);
-		child._mountImage = null;
-	},
+	render: function() {
+		var holderStyle = {
+			width: this.props.width,
+			height: this.props.height
+		};
 
-	/**
-	 * Override to bypass batch updating because it is not necessary.
-	 *
-	 * @param {?object} nextChildren.
-	 * @param {ReactReconcileTransaction} transaction
-	 * @internal
-	 * @override {ReactMultiChild.Mixin.updateChildren}
-	 */
-	updateChildren: function(nextChildren, transaction) {
-		this._mostRecentlyPlacedChild = null;
-		this._updateChildren(nextChildren, transaction);
-	},
+		mergeInto(holderStyle, this.props.style);
 
-	// Shorthands
-
-	mountAndInjectChildren: function(children, transaction) {
-		var mountedImages = this.mountChildren(
-			children,
-			transaction
-		);
-		// Each mount image corresponds to one of the flattened children
-		var i = 0;
-		for (var key in this._renderedChildren) {
-			if (this._renderedChildren.hasOwnProperty(key)) {
-				var child = this._renderedChildren[key];
-				child._mountImage = mountedImages[i];
-				mountedImages[i].setMap(this.node);
-				i++;
-			}
-		}
-	}
-
-});
-
-// Google Map - Root of all components
-
-var GoogleMap = createComponent(
-	'GoogleMap',
-	ReactDOMComponent.Mixin,
-	ReactComponentMixin,
-	ContainerMixin,
-	ReactBrowserComponentMixin, {
-
-		mountComponent: function(rootID, transaction, mountDepth) {
-			ReactComponentMixin.mountComponent.call(
-				this,
-				rootID,
-				transaction,
-				mountDepth
-			);
-			transaction.getReactMountReady().enqueue(this, this.componentDidMount);
-			// Temporary placeholder
-			var idMarkup = DOMPropertyOperations.createMarkupForID(rootID);
-			return '<div ' + idMarkup + '></div>';
-		},
-
-		componentDidMount: function() {
-			this.node = new GoogleMaps.Map(this.getDOMNode(), {
-				center: this.props.center
+		// Loop through each child adding the `this.__node` object
+		// to their props, this will allow the children to be injected
+		// into this map instance.
+		var mapProps = { map: this.__node };
+		var children = React.Children
+			.map(this.props.children, function(child) {
+				return cloneWithProps(child, mapProps);
 			});
 
-			var transaction = ReactComponent.ReactReconcileTransaction.getPooled();
-			transaction.perform(
-				this.mountAndInjectChildren,
-				this,
-				this.props.children,
-				transaction
-			);
-			ReactComponent.ReactReconcileTransaction.release(transaction);
-		},
-
-		receiveComponent: function(nextComponent, transaction) {
-			var props = nextComponent.props;
-			var node = this.node;
-
-			this._updateDOMProperties(props);
-
-			this.updateChildren(props.children, transaction);
-
-			this.props = props;
-		},
-
-		unmountComponent: function() {
-			ReactComponentMixin.unmountComponent.call(this);
-			this.unmountChildren();
-		}
-	});
-
-var OverlayMixin = merge(ReactComponentMixin, {
-	applyNodeProps: function(oldProps, props) {
-		this.node.setOptions(props);
+		return React.DOM.div({
+			className: this.props.className,
+			style: holderStyle
+		}, children);
 	},
 
-	mountComponentIntoNode: function(rootID, container) {
-		throw new Error(
-			'You cannot render a google map overlay component standalone. ' +
-				'You need to wrap it in a GoogleMap.'
-		);
-	}
+	componentDidMount: function() {
+		this.__node = new GoogleMaps.Map(this.getDOMNode(), this.getMapProps());
 
+		// Bind to single click event
+		// TODO: Bind to all events and make this better!
+		GoogleMaps.event.addListener(this.__node, 'click', function() {
+			if (this.props.onClick) {
+				this.props.onClick.apply(null, arguments);
+			}
+		}.bind(this));
+
+		// Now we have the map created, we need to run the render
+		// cycle again to pass down the `map` holder for the
+		// components to render into.
+		this.forceUpdate();
+	},
+
+	componentDidUpdate: function() {
+		this.__node.setOptions(this.getMapProps());
+	},
+
+	getMapProps: function() {
+		return merge(this.props, {
+			style: null,
+			width: null,
+			height: null,
+			onClick: null
+		});
+	}
 });
 
-var Marker = createComponent('Marker', OverlayMixin, {
-	mountComponent: function() {
-		ReactComponentMixin.mountComponent.apply(this, arguments);
-		this.node = new GoogleMaps.Marker({});
-		this.applyNodeProps(BLANK_PROPS, this.props);
-		return this.node;
+var Marker = React.createClass({
+	displayName: 'Marker',
+
+	render: function() {
+		// Nothing to render
+		return React.DOM.noscript();
 	},
 
-	receiveComponent: function(nextComponent, transaction) {
-		var props = nextComponent.props;
-		this.applyNodeProps(this.props, props);
-		this.props = props;
+	shouldComponentUpdate: function() {
+		return false;
+	},
+
+	componentDidMount: function() {
+		this.__node = new GoogleMaps.Marker(this.props);
+
+		// TODO: Bind to events
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		this.__node.setOptions(changed(this.props, nextProps));
+	},
+
+	componentWillUnmount: function() {
+		this.__node.setMap(null);
+		this.__node = null;
 	}
 });
 
 var GoogleMapsAPI = {
-	Map: GoogleMap,
+	Map: Map,
 	Marker: Marker,
 	LatLng: function LatLng(lat, lng, noWrap) { return new GoogleMaps.LatLng(lat, lng, noWrap); }
 };
