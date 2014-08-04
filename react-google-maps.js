@@ -1,7 +1,7 @@
 "use strict";
 
 var GoogleMaps = google.maps;
-var React = require('react/addons');
+var React = require('react');
 var merge = require('react/lib/merge');
 var mergeInto = require('react/lib/mergeInto');
 var cloneWithProps = require('react/lib/cloneWithProps');
@@ -10,7 +10,7 @@ var cloneWithProps = require('react/lib/cloneWithProps');
  * Creates an object containing the changes between two objects
  *
  *   Input:  {blue: true, red: null} {red: null}
- *   Output: {blue: undefined, red: null}
+ *   Output: {blue: undefined}
  *
  * @param {object} prev
  * @param {object} next
@@ -39,6 +39,45 @@ function changed(prev, next) {
 	return changed;
 }
 
+/**
+ * Get zoom level to fit in
+ *
+ * @see http://stackoverflow.com/questions/6048975/google-maps-v3-how-to-calculate-the-zoom-level-for-a-given-bounds
+ *
+ * @param bounds
+ * @param mapWidth
+ * @param mapHeight
+ * @returns {number}
+ */
+function zoomLevelToFitBounds(bounds, mapWidth, mapHeight) {
+	var worldWidth = 256;
+	var worldHeight = 256;
+	var ZOOM_MAX = 21;
+
+	function latRad(lat) {
+		var sin = Math.sin(lat * Math.PI / 180);
+		var radX2 = Math.log((1 + sin) / (1 - sin)) / 2;
+		return Math.max(Math.min(radX2, Math.PI), -Math.PI) / 2;
+	}
+
+	function zoom(mapPx, worldPx, fraction) {
+		return Math.floor(Math.log(mapPx / worldPx / fraction) / Math.LN2);
+	}
+
+	var ne = bounds.getNorthEast();
+	var sw = bounds.getSouthWest();
+
+	var latFraction = (latRad(ne.lat()) - latRad(sw.lat())) / Math.PI;
+
+	var lngDiff = ne.lng() - sw.lng();
+	var lngFraction = ((lngDiff < 0) ? (lngDiff + 360) : lngDiff) / 360;
+
+	var latZoom = zoom(mapHeight, worldHeight, latFraction);
+	var lngZoom = zoom(mapWidth, worldWidth, lngFraction);
+
+	return Math.min(latZoom, lngZoom, ZOOM_MAX);
+}
+
 var Map = React.createClass({
 	displayName: 'Map',
 
@@ -47,8 +86,9 @@ var Map = React.createClass({
 		height: React.PropTypes.number,
 		style: React.PropTypes.object,
 
-		center: React.PropTypes.instanceOf(GoogleMaps.LatLng ).isRequired,
-		zoom: React.PropTypes.number.isRequired,
+		bounds: React.PropTypes.instanceOf(GoogleMaps.LatLngBounds),
+		center: React.PropTypes.instanceOf(GoogleMaps.LatLng),
+		zoom: React.PropTypes.number,
 
 		onClick: React.PropTypes.func
 	},
@@ -118,7 +158,11 @@ var Map = React.createClass({
 			style: null,
 			width: null,
 			height: null,
-			onClick: null
+			onClick: null,
+			bounds: null,
+			zoom: this.props.zoom != null ?
+				this.props.zoom : zoomLevelToFitBounds(this.props.bounds, this.props.width, this.props.height),
+			center: this.props.center || this.props.bounds.getCenter()
 		});
 	}
 });
@@ -139,6 +183,12 @@ var Marker = React.createClass({
 		this.__node = new GoogleMaps.Marker(this.props);
 
 		// TODO: Bind to events
+		GoogleMaps.event.addListener(this.__node, 'click', function() {
+			if (this.props.onClick) {
+				this.props.onClick.apply(null, arguments);
+			}
+		}.bind(this));
+
 	},
 
 	componentWillReceiveProps: function(nextProps) {
@@ -151,10 +201,209 @@ var Marker = React.createClass({
 	}
 });
 
+var Rectangle = React.createClass({
+	displayName: 'Rectangle',
+
+	render: function() {
+		// Nothing to render
+		return React.DOM.noscript();
+	},
+
+	shouldComponentUpdate: function() {
+		return false;
+	},
+
+	componentDidMount: function() {
+		this.__node = new GoogleMaps.Rectangle(this.props);
+
+		// TODO: Bind to events
+		GoogleMaps.event.addListener(this.__node, 'click', function() {
+			if (this.props.onClick) {
+				this.props.onClick.apply(null, arguments);
+			}
+		}.bind(this));
+
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		this.__node.setOptions(changed(this.props, nextProps));
+	},
+
+	componentWillUnmount: function() {
+		this.__node.setMap(null);
+		this.__node = null;
+	}
+});
+
+var Polyline = React.createClass({
+	displayName: 'Polyline',
+
+	render: function() {
+		// Nothing to render
+		return React.DOM.noscript();
+	},
+
+	shouldComponentUpdate: function() {
+		return false;
+	},
+
+	componentDidMount: function() {
+		this.__node = new GoogleMaps.Polyline(this.props);
+
+		// TODO: Bind to events
+		GoogleMaps.event.addListener(this.__node, 'click', function() {
+			if (this.props.onClick) {
+				this.props.onClick.apply(null, arguments);
+			}
+		}.bind(this));
+
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		this.__node.setOptions(changed(this.props, nextProps));
+	},
+
+	componentWillUnmount: function() {
+		this.__node.setMap(null);
+		this.__node = null;
+	}
+});
+
+var Circle = React.createClass({
+	displayName: 'Circle',
+
+	render: function() {
+		// Nothing to render
+		return React.DOM.noscript();
+	},
+
+	shouldComponentUpdate: function() {
+		return false;
+	},
+
+	componentDidMount: function() {
+		this.__node = new GoogleMaps.Circle(this.props);
+
+		// TODO: Bind to events
+		GoogleMaps.event.addListener(this.__node, 'click', function() {
+			if (this.props.onClick) {
+				this.props.onClick.apply(null, arguments);
+			}
+		}.bind(this));
+
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		this.__node.setOptions(changed(this.props, nextProps));
+	},
+
+	componentWillUnmount: function() {
+		this.__node.setMap(null);
+		this.__node = null;
+	}
+});
+
+
+
+function ReactOverlayView(map, props) {
+	this.props = props;
+	this.setMap(map);
+}
+
+ReactOverlayView.prototype = new GoogleMaps.OverlayView();
+
+ReactOverlayView.prototype.onAdd = function() {
+	this._containerElement = document.createElement('div');
+	this.getPanes()[this.props.mapPane]
+		.appendChild(this._containerElement);
+};
+
+ReactOverlayView.prototype.draw = function() {
+	var props = merge(this.props);
+	if (this.props.position) {
+		var point = this.getProjection()
+			.fromLatLngToDivPixel(this.props.position);
+
+		props.style = merge({
+			left: point.x,
+			top: point.y
+		}, this.props.style);
+	}
+
+	React.renderComponent(
+		React.DOM.div(props),
+		this._containerElement
+	)
+};
+
+ReactOverlayView.prototype.onRemove = function() {
+	React.unmountComponentAtNode(this._containerElement);
+	this._containerElement.parentNode
+		.removeChild(this._containerElement);
+	this._containerElement = null;
+};
+
+
+var OverlayView = React.createClass({
+	displayName: 'OverlayView',
+
+	propTypes: {
+		mapPane: React.PropTypes.oneOf(['overlayLayer'])
+	},
+
+	getDefaultProps: function() {
+		return {
+			mapPane: 'overlayLayer'
+		};
+	},
+
+	render: function() {
+		// Nothing to render
+		return React.DOM.noscript();
+	},
+
+	shouldComponentUpdate: function() {
+		return false;
+	},
+
+	componentDidMount: function() {
+		this.__node = new ReactOverlayView(this.props);
+
+		// TODO: Bind to events
+		GoogleMaps.event.addListener(this.__node, 'click', function() {
+			if (this.props.onClick) {
+				this.props.onClick.apply(null, arguments);
+			}
+		}.bind(this));
+
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		var changes = changed(this.props, nextProps);
+
+		this.__node.props = this.props;
+
+		if (changes.mapPane) {
+			// Unmount then, mount again onto the correct map pane
+			this.__node.setMap(null);
+			this.__node.setMap(this.props.map);
+		}
+	},
+
+	componentWillUnmount: function() {
+		this.__node.setMap(null);
+		this.__node = null;
+	}
+});
+
 var GoogleMapsAPI = {
 	Map: Map,
 	Marker: Marker,
-	LatLng: function LatLng(lat, lng, noWrap) { return new GoogleMaps.LatLng(lat, lng, noWrap); }
+	Rectangle: Rectangle,
+  Polyline: Polyline,
+  Circle: Circle,
+	LatLng: function LatLng(lat, lng, noWrap) { return new GoogleMaps.LatLng(lat, lng, noWrap); },
+	LatLngBounds: function LatLngBounds(sw, ne) { return new GoogleMaps.LatLngBounds(sw, ne); }
 };
 
 module.exports = GoogleMapsAPI;
