@@ -305,9 +305,9 @@ var Circle = React.createClass({
 
 
 
-function ReactOverlayView(map, props) {
+function ReactOverlayView(props) {
 	this.props = props;
-	this.setMap(map);
+	this.setMap(props.map);
 }
 
 ReactOverlayView.prototype = new GoogleMaps.OverlayView();
@@ -400,8 +400,9 @@ var GoogleMapsAPI = {
 	Map: Map,
 	Marker: Marker,
 	Rectangle: Rectangle,
-  Polyline: Polyline,
-  Circle: Circle,
+	Polyline: Polyline,
+	Circle: Circle,
+	OverlayView: OverlayView,
 	LatLng: function LatLng(lat, lng, noWrap) { return new GoogleMaps.LatLng(lat, lng, noWrap); },
 	LatLngBounds: function LatLngBounds(sw, ne) { return new GoogleMaps.LatLngBounds(sw, ne); }
 };
