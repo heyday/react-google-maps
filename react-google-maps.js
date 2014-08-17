@@ -78,6 +78,20 @@ function zoomLevelToFitBounds(bounds, mapWidth, mapHeight) {
 	return Math.min(latZoom, lngZoom, ZOOM_MAX);
 }
 
+function mapValidComponents(children, func, context) {
+	var index = 0;
+
+	return React.Children.map(children, function (child) {
+		if (React.isValidComponent(child)) {
+			var lastIndex = index;
+			index++;
+			return func.call(context, child, lastIndex);
+		}
+
+		return child;
+	});
+}
+
 var Map = React.createClass({
 	displayName: 'Map',
 
@@ -110,26 +124,30 @@ var Map = React.createClass({
 	},
 
 	render: function() {
-		var holderStyle = {
-			width: this.props.width,
-			height: this.props.height
-		};
+		var children = null,
+			mapProps = null,
+			holderStyle = {
+				width: this.props.width,
+				height: this.props.height
+			};
 
 		mergeInto(holderStyle, this.props.style);
 
+		// Check if there is an instance of a Google Map first
 		// Loop through each child adding the `this.__node` object
 		// to their props, this will allow the children to be injected
 		// into this map instance.
-		var mapProps = { map: this.__node };
-		var children = React.Children
-			.map(this.props.children, function(child) {
+		if ( this.__node ) {
+			mapProps = { map: this.__node };
+			children = mapValidComponents(this.props.children, function(child) {
 				return cloneWithProps(child, mapProps);
-			});
+			}, this);
+		}
 
 		return React.DOM.div({
 			className: this.props.className,
 			style: holderStyle
-		}, children);
+		}, children );
 	},
 
 	componentDidMount: function() {
@@ -302,7 +320,6 @@ var Circle = React.createClass({
 		this.__node = null;
 	}
 });
-
 
 
 function ReactOverlayView(props) {
